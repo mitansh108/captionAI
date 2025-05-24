@@ -1,44 +1,59 @@
-import {GetObjectCommand, S3Client} from "@aws-sdk/client-s3";
-import {GetTranscriptionJobCommand, StartTranscriptionJobCommand, TranscribeClient} from "@aws-sdk/client-transcribe";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetTranscriptionJobCommand,
+  StartTranscriptionJobCommand,
+  TranscribeClient
+} from "@aws-sdk/client-transcribe";
 
-function getClient() {
+// Secure credential access using environment variables
+function getTranscribeClient() {
   return new TranscribeClient({
-    region: 'us-east-2',
-    credentials: {
-        accessKeyId: 'AKIAQS7P6F4VRLSMUQOP',
-        secretAccessKey: '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',
-    },
+    region: "us-east-2",
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
   });
 }
+
+function getS3Client() {
+  return new S3Client({
+    region: 'us-east-2',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+  });
+}
+
 function createTranscriptionCommand(filename) {
   return new StartTranscriptionJobCommand({
     TranscriptionJobName: filename,
-    OutputBucketName: "mitansh-cap",
-    OutputKey: filename + '.transcription',
+    OutputBucketName: "quickcaption.ai",
+    OutputKey: `${filename}.transcription`,
     IdentifyLanguage: true,
     Media: {
-      MediaFileUri: 's3://' + "mitansh-cap" + '/'+filename,
+      MediaFileUri: `s3://quickcaption.ai/${filename}`,
     },
   });
 }
+
 async function createTranscriptionJob(filename) {
-  const transcribeClient = getClient();
+  const transcribeClient = getTranscribeClient();
   const transcriptionCommand = createTranscriptionCommand(filename);
   return transcribeClient.send(transcriptionCommand);
 }
 
 async function getJob(filename) {
-  const transcribeClient = getClient();
-  let jobStatusResult = null;
+  const transcribeClient = getTranscribeClient();
   try {
     const transcriptionJobStatusCommand = new GetTranscriptionJobCommand({
       TranscriptionJobName: filename,
     });
-    jobStatusResult = await transcribeClient.send(
-      transcriptionJobStatusCommand
-    );
-  } catch (e) {}
-  return jobStatusResult;
+    return await transcribeClient.send(transcriptionJobStatusCommand);
+  } catch (e) {
+    return null;
+  }
 }
 
 async function streamToString(stream) {
@@ -51,60 +66,43 @@ async function streamToString(stream) {
 }
 
 async function getTranscriptionFile(filename) {
-  const transcriptionFile = filename + '.transcription';
-  const s3client = new S3Client({
-    region: 'us-east-2',
-    credentials: {
-        accessKeyId: 'AKIAQS7P6F4VRLSMUQOP',
-        secretAccessKey: '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'
-    },
-  });
-  const getObjectCommand = new GetObjectCommand({
-    Bucket: "mitansh-cap",
-    Key: transcriptionFile,
-  });
-  let transcriptionFileResponse = null;
+  const transcriptionFile = `${filename}.transcription`;
+  const s3client = getS3Client();
+
   try {
-    transcriptionFileResponse = await s3client.send(getObjectCommand);
-  } catch (e) {}
-  if (transcriptionFileResponse) {
-    return JSON.parse(
-      await streamToString(transcriptionFileResponse.Body)
-    );
+    const getObjectCommand = new GetObjectCommand({
+      Bucket: "quickcaption.ai",
+      Key: transcriptionFile,
+    });
+
+    const response = await s3client.send(getObjectCommand);
+    return JSON.parse(await streamToString(response.Body));
+  } catch (e) {
+    return null;
   }
-  return null;
 }
 
 export async function GET(req) {
   const url = new URL(req.url);
-  const searchParams = new URLSearchParams(url.searchParams);
-  const filename = searchParams.get('filename');
+  const filename = url.searchParams.get('filename');
 
-  // find ready transcription
   const transcription = await getTranscriptionFile(filename);
   if (transcription) {
     return Response.json({
-      status:'COMPLETED',
+      status: 'COMPLETED',
       transcription,
     });
   }
 
-  // check if already transcribing
   const existingJob = await getJob(filename);
-
   if (existingJob) {
     return Response.json({
       status: existingJob.TranscriptionJob.TranscriptionJobStatus,
-    })
-  }
-
-  // creating new transcription job
-  if (!existingJob) {
-    const newJob = await createTranscriptionJob(filename);
-    return Response.json({
-      status: newJob.TranscriptionJob.TranscriptionJobStatus,
     });
   }
 
-  return Response.json(null);
+  const newJob = await createTranscriptionJob(filename);
+  return Response.json({
+    status: newJob.TranscriptionJob.TranscriptionJobStatus,
+  });
 }

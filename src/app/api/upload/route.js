@@ -14,18 +14,18 @@ export async function POST(req) {
     const data = await file.arrayBuffer();
 
     const s3client = new S3Client({
-        region: "us-east-2",
-        credentials: {
-          accessKeyId: 'AKIAQS7P6F4VRLSMUQOP',
-          secretAccessKey: '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',
-        },
-      });
+      region: "us-east-2",
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+    });
 
     const ext = name.split(".").pop();
     const newName = `${uuidv4()}.${ext}`;
 
     const uploadCommand = new PutObjectCommand({
-      Bucket: 'mitansh-cap',
+      Bucket: 'quickcaption.ai',
       Body: data,
       ACL: "public-read",
       ContentType: type,
