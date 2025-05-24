@@ -20,20 +20,22 @@ export default function Filepage() {
 
 
 
+// Add state to hold your ffmpeg instance
+const [ffmpeg, setFfmpeg] = useState(null);
 
-  // Add state to hold your ffmpeg instance
-  const [ffmpeg, setFfmpeg] = useState(null);
-
-  useEffect(() => {
-    // Dynamically import and initialize ffmpeg on client side only
-    async function loadFFmpeg() {
-      const { createFFmpeg } = await import('@ffmpeg/ffmpeg');
-      const ffmpegInstance = createFFmpeg({ log: true });
-      await ffmpegInstance.load();
-      setFfmpeg(ffmpegInstance);
-    }
-    loadFFmpeg();
-  }, []);
+useEffect(() => {
+  // Dynamically import and initialize ffmpeg on client side only
+  async function loadFFmpeg() {
+    const { createFFmpeg } = await import('@ffmpeg/ffmpeg');
+    const ffmpegInstance = createFFmpeg({
+      log: true,
+      corePath: 'https://unpkg.com/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js',
+    });
+    await ffmpegInstance.load();
+    setFfmpeg(ffmpegInstance);
+  }
+  loadFFmpeg();
+}, []);
 
   useEffect(() => {
     getTranscription();
