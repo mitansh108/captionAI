@@ -7,7 +7,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import axios from "axios";
 import { useParams } from "next/navigation";
 import { clearTranscriptionItems } from "../components/libs/awsTranscriptionHelpers";
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+
 
 
 export default function Filepage() {
@@ -17,6 +17,27 @@ export default function Filepage() {
   const [isFetchingInfo, setIsFetchingInfo] = useState(false);
   const [awsTranscriptionItems, setAwsTranscriptionItems] = useState([]);
   const videoRef = useRef(null);
+
+
+
+
+  // Add state to hold your ffmpeg instance
+  const [ffmpeg, setFfmpeg] = useState(null);
+
+  useEffect(() => {
+    // Dynamically import and initialize ffmpeg on client side only
+    async function loadFFmpeg() {
+      const { createFFmpeg } = await import('@ffmpeg/ffmpeg');
+      const ffmpegInstance = createFFmpeg({ log: true });
+      await ffmpegInstance.load();
+      setFfmpeg(ffmpegInstance);
+    }
+    loadFFmpeg();
+  }, []);
+
+  useEffect(() => {
+    getTranscription();
+  }, [filename]);
   
 
   useEffect(() => {
